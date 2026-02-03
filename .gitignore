@@ -1,0 +1,27 @@
+# Generated output files
+output/stl/*.stl
+output/png/*.png
+output/gcode/*.gcode
+output/gcode/*.3mf
+
+# Keep directory structure
+!output/stl/.keep
+!output/png/.keep
+!output/gcode/.keep
+
+# macOS
+.DS_Store
+
+# OpenSCAD backup files
+*.scad~
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.bak
