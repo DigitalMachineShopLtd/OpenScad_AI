@@ -25,3 +25,12 @@ output/gcode/*.3mf
 # Temporary files
 *.tmp
 *.bak
+
+# Local binaries (AppImages, etc.)
+bin/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
