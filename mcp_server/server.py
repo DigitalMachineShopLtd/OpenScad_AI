@@ -298,6 +298,16 @@ def check_environment() -> dict:
     env["mqtt_broker"] = os.environ.get("MQTT_BROKER", "localhost")
     env["mqtt_port"] = int(os.environ.get("MQTT_PORT", "1883"))
 
+    # RAG status
+    env["rag_enabled"] = rag_client.is_rag_enabled()
+    env["chromadb_host"] = os.environ.get("CHROMADB_HOST", "10.0.1.81")
+    env["chromadb_port"] = int(os.environ.get("CHROMADB_PORT", "8000"))
+    try:
+        chroma = rag_client._get_chroma_client()
+        env["chromadb_ok"] = chroma is not None
+    except Exception:
+        env["chromadb_ok"] = False
+
     return env
 
 
@@ -599,6 +609,19 @@ def save_design_iteration(file_path: str) -> dict:
         "version": result["version"],
         "iteration_file": result["file_path"],
     })
+
+    # Auto-store iteration in RAG design_history
+    try:
+        from mcp_server.chunking import chunk_file
+        chunks = chunk_file(
+            result["file_path"],
+            "openscad_ai",
+            f"iterations/{Path(result['file_path']).name}",
+        )
+        if chunks:
+            rag_client.store_chunks(chunks, "design_history")
+    except Exception as e:
+        log.warning("RAG auto-store on iteration save failed: %s", e)
 
     return result
 
