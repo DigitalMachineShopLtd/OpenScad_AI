@@ -22,6 +22,8 @@ from mcp_server.versioning import (
     list_iterations,
     save_iteration,
 )
+from mcp_server import rag_client
+from mcp_server.chunking import chunk_file, detect_collection
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,7 +63,13 @@ def validate_design(file_path: str) -> dict:
         "overall": result.overall,
     })
 
-    return asdict(result)
+    response = asdict(result)
+    response = rag_client.auto_inject(
+        response,
+        f"hardware specs for {Path(resolved).stem}",
+        "schemas_config",
+    )
+    return response
 
 
 @mcp.tool()
@@ -138,6 +146,11 @@ def render_design_views(
         "view_count": len(result["views"]),
     })
 
+    result = rag_client.auto_inject(
+        result,
+        f"design iteration history for {Path(resolved).stem}",
+        "design_history",
+    )
     return result
 
 
@@ -204,11 +217,17 @@ def create_from_template(template: str, name: str, directory: str = "designs/mec
         "file": str(dest.relative_to(PROJECT_DIR)),
     })
 
-    return {
+    response = {
         "success": True,
         "file_path": str(dest.relative_to(PROJECT_DIR)),
         "template_used": template,
     }
+    response = rag_client.auto_inject(
+        response,
+        f"{template} {name} design patterns",
+        "openscad_code",
+    )
+    return response
 
 
 @mcp.tool()
@@ -610,6 +629,126 @@ def get_latest_design_iteration(design_name: str) -> dict:
     return latest
 
 
+@mcp.tool()
+def search_knowledge_base(
+    query: str, collection: str | None = None, n_results: int = 5
+) -> dict:
+    """Search the unified knowledge base for relevant context.
+
+    Searches across all RAG collections (openscad_code, project_docs,
+    schemas_config, design_history) or a specific collection.
+
+    Args:
+        query: Natural-language search query
+        collection: Optional collection name to restrict search
+        n_results: Maximum results to return (default: 5)
+    """
+    return rag_client.search(query, collection=collection, n_results=n_results)
+
+
+@mcp.tool()
+def ingest_document(file_path: str, collection: str | None = None) -> dict:
+    """Ingest a single document into the RAG knowledge base.
+
+    Chunks the file and stores embeddings in the appropriate collection.
+
+    Args:
+        file_path: Path to the file (relative to project root or absolute)
+        collection: Optional target collection (auto-detected from extension if omitted)
+    """
+    resolved = _resolve_path(file_path)
+    p = Path(resolved)
+
+    if not p.is_file():
+        return {"error": f"File not found: {file_path}"}
+
+    repo, rel_path = _classify_file(p)
+
+    if collection is None:
+        collection = detect_collection(rel_path)
+
+    chunks = chunk_file(resolved, repo, rel_path)
+    store_result = rag_client.store_chunks(chunks, collection)
+
+    mqtt_client.publish_event("rag", "ingested", {
+        "file": rel_path,
+        "collection": collection,
+        "chunks": len(chunks),
+        "success": store_result["success"],
+    })
+
+    return {
+        "success": store_result["success"],
+        "file": rel_path,
+        "collection": collection,
+        "chunks": len(chunks),
+    }
+
+
+@mcp.tool()
+def ingest_directory(
+    directory: str, pattern: str = "**/*", collection: str | None = None
+) -> dict:
+    """Ingest all supported files in a directory into the RAG knowledge base.
+
+    Recursively finds files matching the pattern and ingests them.
+
+    Args:
+        directory: Directory path (relative to project root or absolute)
+        pattern: Glob pattern for file matching (default: "**/*")
+        collection: Optional target collection (auto-detected per file if omitted)
+    """
+    resolved = _resolve_path(directory)
+    dir_path = Path(resolved)
+
+    if not dir_path.is_dir():
+        return {"error": f"Directory not found: {directory}"}
+
+    supported_extensions = {
+        ".scad", ".md", ".mmd", ".json", ".sh", ".html", ".txt", ".py", ".conf",
+    }
+
+    total_files = 0
+    total_chunks = 0
+    errors = []
+
+    for file_path in sorted(dir_path.glob(pattern)):
+        if not file_path.is_file():
+            continue
+
+        # Skip hidden files
+        if any(part.startswith(".") for part in file_path.parts):
+            continue
+
+        if file_path.suffix.lower() not in supported_extensions:
+            continue
+
+        try:
+            repo, rel_path = _classify_file(file_path)
+            file_collection = collection if collection is not None else detect_collection(rel_path)
+            chunks = chunk_file(str(file_path), repo, rel_path)
+            rag_client.store_chunks(chunks, file_collection)
+            total_files += 1
+            total_chunks += len(chunks)
+        except Exception as e:
+            log.warning("Failed to ingest %s: %s", file_path, e)
+            errors.append({"file": str(file_path), "error": str(e)})
+
+    mqtt_client.publish_event("rag", "bulk_ingested", {
+        "directory": str(dir_path),
+        "files": total_files,
+        "chunks": total_chunks,
+        "errors": len(errors),
+    })
+
+    return {
+        "success": len(errors) == 0,
+        "files": total_files,
+        "chunks": total_chunks,
+        "errors": errors if errors else None,
+    }
+
+
 @mcp.resource("bosl2://prompts/image-to-code")
 def prompt_image_to_code() -> str:
     """Structured prompt template for generating OpenSCAD code from an image or sketch description."""
@@ -699,6 +838,16 @@ diff()
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _classify_file(abs_path: Path) -> tuple[str, str]:
+    """Classify a file by its repository and return (repo_name, relative_path)."""
+    ai_iot_lab = Path("/home/tie/AI_IoT_Lab_v2")
+    if abs_path.is_relative_to(ai_iot_lab):
+        return ("ai_iot_lab_v2", str(abs_path.relative_to(ai_iot_lab)))
+    if abs_path.is_relative_to(PROJECT_DIR):
+        return ("openscad_ai", str(abs_path.relative_to(PROJECT_DIR)))
+    return ("unknown", abs_path.name)
 
 
 def _resolve_path(file_path: str) -> str:
