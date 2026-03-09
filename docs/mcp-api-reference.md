@@ -1,6 +1,6 @@
 # MCP Server API Reference
 
-**OpenScad_AI MCP Server** — 11 tools and 7 resources for AI-assisted 3D design.
+**OpenScad_AI MCP Server** — 14 tools and 7 resources for AI-assisted 3D design.
 
 Server name: `OpenScad_AI`
 Protocol: MCP (JSON-RPC over stdio)
@@ -327,6 +327,91 @@ Get the most recent saved iteration of a design.
 
 ---
 
+### search_knowledge_base
+
+Semantic search across all or specific RAG collections. Uses ChromaDB vector store to find relevant OpenSCAD code, project documentation, schemas, or design history.
+
+**Parameters:**
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `query` | string | yes | — | Search query |
+| `collection` | string\|null | no | `null` | Specific collection to search, or `null` for all |
+| `n_results` | integer | no | `5` | Number of results to return |
+
+**Collections:** `openscad_code`, `project_docs`, `schemas_config`, `design_history`
+
+**Returns:**
+
+```json
+{
+  "results": [
+    {
+      "content": "...",
+      "metadata": { "source": "...", "collection": "..." },
+      "distance": 0.23
+    }
+  ],
+  "count": 3,
+  "collection": "openscad_code"
+}
+```
+
+**MQTT event:** `openscad/rag/search`
+
+---
+
+### ingest_document
+
+On-demand ingestion of a single file into the RAG knowledge base. The file is chunked and embedded into ChromaDB for later semantic search.
+
+**Parameters:**
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `file_path` | string | yes | — | Path to file to ingest |
+| `collection` | string\|null | no | `null` | Target collection (auto-detected from file type if not specified) |
+
+**Returns:**
+
+```json
+{
+  "success": true,
+  "chunks": 12,
+  "collection": "openscad_code"
+}
+```
+
+**MQTT event:** `openscad/rag/ingested`
+
+---
+
+### ingest_directory
+
+Bulk ingest a directory of files into the RAG knowledge base with glob pattern filtering.
+
+**Parameters:**
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `directory` | string | yes | — | Directory path to ingest |
+| `pattern` | string | no | `"**/*"` | Glob pattern for file filtering |
+| `collection` | string\|null | no | `null` | Target collection (auto-detected per file if not specified) |
+
+**Returns:**
+
+```json
+{
+  "success": true,
+  "files": 8,
+  "chunks": 94
+}
+```
+
+**MQTT event:** `openscad/rag/bulk_ingested`
+
+---
+
 ## Resources
 
 Resources are user/app-controlled — they are loaded into Claude's context on demand to provide reference material for better code generation.
@@ -458,3 +543,36 @@ The `mcp_server/versioning.py` module manages design iteration snapshots.
 - **Version detection:** Scans existing files matching `{stem}_v\d{3}\.scad` regex, takes max + 1
 - **Copy method:** `shutil.copy2` (preserves metadata)
 - **Thread safety:** File-system based, no locks needed for single-writer
+
+---
+
+## RAG Configuration
+
+The RAG (Retrieval-Augmented Generation) subsystem uses ChromaDB for vector storage and semantic search.
+
+### Environment Variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `CHROMADB_HOST` | `10.0.1.81` | ChromaDB server hostname |
+| `CHROMADB_PORT` | `8000` | ChromaDB server port |
+| `RAG_ENABLED` | `true` | Enable/disable RAG features |
+| `RAG_AUTO_INJECT` | `true` | Enable automatic context injection on tool calls |
+| `RAG_N_RESULTS` | `5` | Default number of results for semantic search |
+
+### Collections
+
+| Collection | Content |
+|------------|---------|
+| `openscad_code` | OpenSCAD source files and BOSL2 patterns |
+| `project_docs` | Project documentation and guides |
+| `schemas_config` | JSON schemas and configuration files |
+| `design_history` | Rendered design snapshots and iteration metadata |
+
+### Auto-Injection
+
+When `RAG_AUTO_INJECT` is enabled, relevant knowledge is silently injected into context during these tool calls:
+
+- **`create_from_template`** — injects from `openscad_code` (relevant patterns for the template type)
+- **`render_design_views`** — injects from `design_history` (prior design context)
+- **`validate_design`** — injects from `schemas_config` (relevant validation rules)

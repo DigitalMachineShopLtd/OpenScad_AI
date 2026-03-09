@@ -83,6 +83,31 @@ output/iterations/
 
 Use `list_design_iterations` to see all versions, or `get_latest_design_iteration` to retrieve the most recent.
 
+### Use RAG for Knowledge-Assisted Design
+
+The MCP server includes a RAG (Retrieval-Augmented Generation) subsystem backed by ChromaDB. It provides semantic search across project knowledge to improve design quality.
+
+**Three RAG tools:**
+
+- **`search_knowledge_base`** — Semantic search across OpenSCAD code, docs, schemas, or design history. Use a specific collection or search all at once.
+- **`ingest_document`** — Add a single file to the knowledge base (collection auto-detected from file type).
+- **`ingest_directory`** — Bulk ingest a directory with glob filtering.
+
+**Auto-injection:** When enabled (`RAG_AUTO_INJECT=true`), relevant context is silently injected during `create_from_template`, `render_design_views`, and `validate_design` calls — no manual search needed.
+
+**Example workflow:**
+```
+You: "Search the knowledge base for NEMA 17 motor mount patterns"
+Claude: [uses search_knowledge_base with query="NEMA 17 motor mount", collection="openscad_code"]
+        [finds relevant prior designs and adapts them]
+```
+
+**Ingesting your own files:**
+```
+You: "Ingest all the scad files in my custom-parts directory"
+Claude: [uses ingest_directory with directory="custom-parts", pattern="**/*.scad"]
+```
+
 ### Access BOSL2 Documentation
 
 Claude loads resources on demand for accurate code generation:
@@ -474,7 +499,7 @@ Claude: [validate_design → render_stl_file]
 ## Resources
 
 ### Project Documentation
-- [MCP API Reference](mcp-api-reference.md) — All 11 tools and 7 resources
+- [MCP API Reference](mcp-api-reference.md) — All 14 tools and 7 resources
 - [BOSL2 Quick Reference](bosl2-quickref.md) — Common patterns and examples
 - [Image to Code Research](image_to_code.md) — 5 pathways for image-to-OpenSCAD
 

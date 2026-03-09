@@ -35,7 +35,7 @@ Create high-quality 3D printable models through natural conversation with AI. De
 ┌────────────────────────────────────────────────────────────┐
 │              MCP Server (mcp_server/)                       │
 │                                                            │
-│  11 Tools                    7 Resources                   │
+│  14 Tools                    7 Resources                   │
 │  ├── validate_design         ├── bosl2://quickref          │
 │  ├── render_stl_file         ├── bosl2://attachments       │
 │  ├── render_png_preview      ├── bosl2://threading         │
@@ -46,7 +46,10 @@ Create high-quality 3D printable models through natural conversation with AI. De
 │  ├── check_environment                                     │
 │  ├── save_design_iteration                                 │
 │  ├── list_design_iterations                                │
-│  └── get_latest_design_iteration                           │
+│  ├── get_latest_design_iteration                           │
+│  ├── search_knowledge_base                                 │
+│  ├── ingest_document                                       │
+│  └── ingest_directory                                      │
 └────────────────────┬───────────────────────────────────────┘
                      │
           ┌──────────┴──────────┐
@@ -189,7 +192,7 @@ The core workflow for AI-assisted design:
 
 Full API documentation: **[docs/mcp-api-reference.md](docs/mcp-api-reference.md)**
 
-### Tools (11)
+### Tools (14)
 
 | Tool | Purpose |
 |------|---------|
@@ -204,6 +207,9 @@ Full API documentation: **[docs/mcp-api-reference.md](docs/mcp-api-reference.md)
 | `save_design_iteration` | Save numbered snapshot (`design_v001.scad`) |
 | `list_design_iterations` | List all saved iteration versions |
 | `get_latest_design_iteration` | Get the highest version of a design |
+| `search_knowledge_base` | Semantic search across RAG collections (code, docs, schemas, history) |
+| `ingest_document` | Ingest a single file into the RAG knowledge base |
+| `ingest_directory` | Bulk ingest a directory with glob pattern filtering |
 
 ### Resources (7)
 
@@ -224,7 +230,7 @@ OpenScad_AI/
 ├── mcp_server/              # MCP server (Python/FastMCP)
 │   ├── __init__.py
 │   ├── __main__.py          # Entry point: python -m mcp_server
-│   ├── server.py            # 11 tools + 7 resources
+│   ├── server.py            # 14 tools + 7 resources
 │   ├── openscad.py          # OpenSCAD CLI wrapper, multi-view rendering
 │   ├── mqtt_client.py       # Persistent MQTT with QoS 1
 │   └── versioning.py        # Iteration tracking (design_v001.scad)
@@ -286,6 +292,9 @@ Every MCP tool publishes events to MQTT for observability and Node-RED integrati
 | `openscad/render/multi_view` | After multi-view render completes |
 | `openscad/design/created` | After template-based design creation |
 | `openscad/design/iteration_saved` | After design iteration is saved |
+| `openscad/rag/search` | After RAG knowledge base search |
+| `openscad/rag/ingested` | After single document ingestion |
+| `openscad/rag/bulk_ingested` | After directory bulk ingestion |
 
 **Payload format:** JSON with auto-appended `timestamp` field (ISO 8601 UTC).
 
@@ -297,6 +306,26 @@ Every MCP tool publishes events to MQTT for observability and Node-RED integrati
 | `MQTT_PORT` | `1883` | MQTT broker port |
 
 MQTT is optional — if the broker is unavailable, the server logs a warning and continues without publishing.
+
+## RAG Knowledge Base
+
+The server includes a RAG (Retrieval-Augmented Generation) subsystem backed by ChromaDB for semantic search across project knowledge.
+
+**Collections:** `openscad_code`, `project_docs`, `schemas_config`, `design_history`
+
+**Tools:** `search_knowledge_base`, `ingest_document`, `ingest_directory` — search existing knowledge or add new files to the vector store.
+
+**Auto-injection:** When `RAG_AUTO_INJECT=true`, relevant context is silently injected during `create_from_template` (code patterns), `render_design_views` (design history), and `validate_design` (schemas). No manual search needed.
+
+**Configuration:**
+
+| Environment Variable | Default | Purpose |
+|---------------------|---------|---------|
+| `CHROMADB_HOST` | `10.0.1.81` | ChromaDB server hostname |
+| `CHROMADB_PORT` | `8000` | ChromaDB server port |
+| `RAG_ENABLED` | `true` | Enable/disable RAG features |
+| `RAG_AUTO_INJECT` | `true` | Auto-inject context on tool calls |
+| `RAG_N_RESULTS` | `5` | Default semantic search result count |
 
 ## Why BOSL2?
 
@@ -314,7 +343,7 @@ BOSL2 is the critical enabler for AI-assisted OpenSCAD. It transforms low-level 
 ## Documentation
 
 - **[How-To Guide](docs/HOW-TO-USE.md)** — Complete workflow guide (shell scripts + MCP)
-- **[MCP API Reference](docs/mcp-api-reference.md)** — All 11 tools and 7 resources with parameters and examples
+- **[MCP API Reference](docs/mcp-api-reference.md)** — All 14 tools and 7 resources with parameters and examples
 - **[BOSL2 Quick Reference](docs/bosl2-quickref.md)** — Common functions, shapes, patterns
 - **[Image to Code Research](docs/image_to_code.md)** — 5 pathways for converting images to OpenSCAD (Pathway 5 implemented)
 - **[Sample Bracket](designs/examples/sample-bracket.scad)** — Example design
