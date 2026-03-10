@@ -77,6 +77,7 @@ SecretStorage==3.5.0
 sse-starlette==3.3.2
 starlette==0.52.1
 tenacity==9.1.4
+trimesh==4.11.3
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 uncalled-for==0.2.0
