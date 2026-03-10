@@ -1,6 +1,6 @@
 # MCP Server API Reference
 
-**OpenScad_AI MCP Server** — 14 tools and 7 resources for AI-assisted 3D design.
+**OpenScad_AI MCP Server** — 17 tools and 7 resources for AI-assisted 3D design.
 
 Server name: `OpenScad_AI`
 Protocol: MCP (JSON-RPC over stdio)
@@ -409,6 +409,85 @@ Bulk ingest a directory of files into the RAG knowledge base with glob pattern f
 ```
 
 **MQTT event:** `openscad/rag/bulk_ingested`
+
+---
+
+### analyze_stl
+
+Analyze an STL file: extract metadata (bounding box, volume, face count, manifold status, convex hull ratio), render multi-view PNGs, generate import wrapper, store results in RAG.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `file_path` | string | yes | Path to `.stl` file |
+
+**Returns:**
+
+```json
+{
+  "success": true,
+  "metadata": { "..." : "..." },
+  "views": ["..."],
+  "scad_path": "output/stl/my-part_import.scad"
+}
+```
+
+**MQTT event:** `openscad/stl/analyzed`
+
+---
+
+### convert_stl_to_scad
+
+Attempt primitive fitting on an STL — fits cuboid, cylinder, or sphere based on bounding box and convex hull ratio. Only works for simple convex shapes (ratio > 0.85).
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `file_path` | string | yes | Path to `.stl` file |
+
+**Returns:**
+
+```json
+{
+  "success": true,
+  "primitive": "cuboid",
+  "scad_code": "cuboid([10,20,30]);",
+  "confidence": 0.92,
+  "scad_path": "output/stl/my-part_primitive.scad",
+  "metadata": { "..." : "..." }
+}
+```
+
+**MQTT event:** `openscad/stl/converted`
+
+---
+
+### reverse_engineer_stl
+
+Prepare STL for AI-driven visual reverse engineering. Renders multi-view PNGs and returns metadata so Claude can generate parametric BOSL2 code using the visual feedback loop.
+
+**Parameters:**
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `file_path` | string | yes | — | Path to `.stl` file |
+| `description` | string | no | `null` | Description of the object |
+
+**Returns:**
+
+```json
+{
+  "success": true,
+  "metadata": { "..." : "..." },
+  "views": ["..."],
+  "description": "A motor mount bracket",
+  "instructions": "..."
+}
+```
+
+**MQTT event:** `openscad/stl/reverse_engineer_started`
 
 ---
 

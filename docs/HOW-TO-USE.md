@@ -108,6 +108,28 @@ You: "Ingest all the scad files in my custom-parts directory"
 Claude: [uses ingest_directory with directory="custom-parts", pattern="**/*.scad"]
 ```
 
+### STL-to-OpenSCAD Conversion
+
+Three tools provide a tiered approach for converting existing STL files into parametric OpenSCAD code:
+
+**Tier 1 — Analyze:** Use `analyze_stl` to extract metadata (bounding box, volume, face count, manifold status) and render multi-view PNGs. Results are stored in RAG for future reference.
+```
+You: "Analyze the STL file at output/stl/widget.stl"
+Claude: [uses analyze_stl → extracts metadata, renders views, stores in RAG]
+```
+
+**Tier 2 — Primitive Fitting:** Use `convert_stl_to_scad` to attempt automatic primitive fitting (cuboid, cylinder, or sphere). Works best for simple convex shapes with a convex hull ratio above 0.85.
+```
+You: "Try to convert this STL to OpenSCAD primitives"
+Claude: [uses convert_stl_to_scad → fits a cuboid with 0.93 confidence]
+```
+
+**Tier 3 — AI Reverse Engineering:** Use `reverse_engineer_stl` for complex shapes. Renders multi-view PNGs and returns metadata so Claude can generate parametric BOSL2 code using the visual feedback loop.
+```
+You: "Reverse engineer this bracket STL into parametric BOSL2 code"
+Claude: [uses reverse_engineer_stl → renders views → generates BOSL2 code → iterates]
+```
+
 ### Access BOSL2 Documentation
 
 Claude loads resources on demand for accurate code generation:
@@ -499,7 +521,7 @@ Claude: [validate_design → render_stl_file]
 ## Resources
 
 ### Project Documentation
-- [MCP API Reference](mcp-api-reference.md) — All 14 tools and 7 resources
+- [MCP API Reference](mcp-api-reference.md) — All 17 tools and 7 resources
 - [BOSL2 Quick Reference](bosl2-quickref.md) — Common patterns and examples
 - [Image to Code Research](image_to_code.md) — 5 pathways for image-to-OpenSCAD
 

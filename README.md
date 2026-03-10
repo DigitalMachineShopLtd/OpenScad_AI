@@ -35,7 +35,7 @@ Create high-quality 3D printable models through natural conversation with AI. De
 ┌────────────────────────────────────────────────────────────┐
 │              MCP Server (mcp_server/)                       │
 │                                                            │
-│  14 Tools                    7 Resources                   │
+│  17 Tools                    7 Resources                   │
 │  ├── validate_design         ├── bosl2://quickref          │
 │  ├── render_stl_file         ├── bosl2://attachments       │
 │  ├── render_png_preview      ├── bosl2://threading         │
@@ -49,7 +49,10 @@ Create high-quality 3D printable models through natural conversation with AI. De
 │  ├── get_latest_design_iteration                           │
 │  ├── search_knowledge_base                                 │
 │  ├── ingest_document                                       │
-│  └── ingest_directory                                      │
+│  ├── ingest_directory                                      │
+│  ├── analyze_stl                                           │
+│  ├── convert_stl_to_scad                                   │
+│  └── reverse_engineer_stl                                  │
 └────────────────────┬───────────────────────────────────────┘
                      │
           ┌──────────┴──────────┐
@@ -192,7 +195,7 @@ The core workflow for AI-assisted design:
 
 Full API documentation: **[docs/mcp-api-reference.md](docs/mcp-api-reference.md)**
 
-### Tools (14)
+### Tools (17)
 
 | Tool | Purpose |
 |------|---------|
@@ -210,6 +213,9 @@ Full API documentation: **[docs/mcp-api-reference.md](docs/mcp-api-reference.md)
 | `search_knowledge_base` | Semantic search across RAG collections (code, docs, schemas, history) |
 | `ingest_document` | Ingest a single file into the RAG knowledge base |
 | `ingest_directory` | Bulk ingest a directory with glob pattern filtering |
+| `analyze_stl` | Extract STL metadata, render views, generate import wrapper, store in RAG |
+| `convert_stl_to_scad` | Primitive fitting (cuboid/cylinder/sphere) for simple convex STL shapes |
+| `reverse_engineer_stl` | Prepare STL for AI-driven visual reverse engineering into BOSL2 code |
 
 ### Resources (7)
 
@@ -230,7 +236,7 @@ OpenScad_AI/
 ├── mcp_server/              # MCP server (Python/FastMCP)
 │   ├── __init__.py
 │   ├── __main__.py          # Entry point: python -m mcp_server
-│   ├── server.py            # 14 tools + 7 resources
+│   ├── server.py            # 17 tools + 7 resources
 │   ├── openscad.py          # OpenSCAD CLI wrapper, multi-view rendering
 │   ├── mqtt_client.py       # Persistent MQTT with QoS 1
 │   └── versioning.py        # Iteration tracking (design_v001.scad)
@@ -295,6 +301,9 @@ Every MCP tool publishes events to MQTT for observability and Node-RED integrati
 | `openscad/rag/search` | After RAG knowledge base search |
 | `openscad/rag/ingested` | After single document ingestion |
 | `openscad/rag/bulk_ingested` | After directory bulk ingestion |
+| `openscad/stl/analyzed` | After STL analysis completes |
+| `openscad/stl/converted` | After STL primitive fitting completes |
+| `openscad/stl/reverse_engineer_started` | After STL reverse engineering is prepared |
 
 **Payload format:** JSON with auto-appended `timestamp` field (ISO 8601 UTC).
 
@@ -343,7 +352,7 @@ BOSL2 is the critical enabler for AI-assisted OpenSCAD. It transforms low-level 
 ## Documentation
 
 - **[How-To Guide](docs/HOW-TO-USE.md)** — Complete workflow guide (shell scripts + MCP)
-- **[MCP API Reference](docs/mcp-api-reference.md)** — All 14 tools and 7 resources with parameters and examples
+- **[MCP API Reference](docs/mcp-api-reference.md)** — All 17 tools and 7 resources with parameters and examples
 - **[BOSL2 Quick Reference](docs/bosl2-quickref.md)** — Common functions, shapes, patterns
 - **[Image to Code Research](docs/image_to_code.md)** — 5 pathways for converting images to OpenSCAD (Pathway 5 implemented)
 - **[Sample Bracket](designs/examples/sample-bracket.scad)** — Example design
@@ -398,6 +407,7 @@ Validates the STL exists and is non-empty, publishes readiness to MQTT. Slicing 
 | MQTT broker | any | Optional — for event publishing |
 | FastMCP | 3.1.0 | Python MCP framework |
 | paho-mqtt | 2.1.0 | MQTT client library |
+| trimesh | 4.11.3 | STL mesh analysis and primitive fitting |
 
 ## Contributing
 
