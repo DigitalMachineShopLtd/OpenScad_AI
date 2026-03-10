@@ -24,6 +24,11 @@ from mcp_server.versioning import (
 )
 from mcp_server import rag_client
 from mcp_server.chunking import chunk_file, detect_collection
+from mcp_server.stl_converter import (
+    analyze_stl as _analyze_stl,
+    convert_stl as _convert_stl,
+    reverse_engineer as _reverse_engineer,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -770,6 +775,78 @@ def ingest_directory(
         "chunks": total_chunks,
         "errors": errors if errors else None,
     }
+
+
+@mcp.tool()
+def analyze_stl(file_path: str) -> dict:
+    """Analyze an STL file: extract metadata, render multi-view PNGs, generate import wrapper, store in RAG.
+
+    This is Tier A of STL-to-OpenSCAD conversion. Always runs first.
+    Extracts bounding box, volume, face count, manifold status, and convex hull ratio.
+    Renders 4 views (front/top/right/isometric) for visual analysis.
+
+    Args:
+        file_path: Path to .stl file (relative to project root or absolute)
+    """
+    resolved = _resolve_path(file_path)
+    result = _analyze_stl(resolved)
+
+    mqtt_client.publish_event("stl", "analyzed", {
+        "file": resolved,
+        "success": result["success"],
+        "bbox": result.get("metadata", {}).get("bbox"),
+    })
+
+    return result
+
+
+@mcp.tool()
+def convert_stl_to_scad(file_path: str) -> dict:
+    """Attempt to convert an STL file to approximate BOSL2 code via primitive fitting.
+
+    This is Tier B of STL-to-OpenSCAD conversion. Analyzes the mesh geometry
+    and fits the closest primitive shape (cuboid, cylinder, or sphere).
+    Only works for simple convex shapes (convex hull ratio > 0.85).
+
+    Args:
+        file_path: Path to .stl file (relative to project root or absolute)
+    """
+    resolved = _resolve_path(file_path)
+    result = _convert_stl(resolved)
+
+    mqtt_client.publish_event("stl", "converted", {
+        "file": resolved,
+        "success": result["success"],
+        "primitive": result.get("primitive"),
+        "confidence": result.get("confidence"),
+    })
+
+    return result
+
+
+@mcp.tool()
+def reverse_engineer_stl(file_path: str, description: str = "") -> dict:
+    """Prepare an STL file for AI-driven visual reverse engineering.
+
+    This is Tier C — renders multi-view PNGs and returns them with metadata
+    so you can analyze the shape visually and generate parametric BOSL2 code.
+    After receiving the views, write BOSL2 code, use render_design_views to
+    compare, and iterate until proportions match.
+
+    Args:
+        file_path: Path to .stl file (relative to project root or absolute)
+        description: Optional description of the object for context
+    """
+    resolved = _resolve_path(file_path)
+    result = _reverse_engineer(resolved, description=description)
+
+    mqtt_client.publish_event("stl", "reverse_engineer_started", {
+        "file": resolved,
+        "success": result["success"],
+        "description": description,
+    })
+
+    return result
 
 
 @mcp.resource("bosl2://prompts/image-to-code")
