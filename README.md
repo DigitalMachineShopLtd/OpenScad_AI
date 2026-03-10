@@ -239,11 +239,17 @@ OpenScad_AI/
 │   ├── server.py            # 17 tools + 7 resources
 │   ├── openscad.py          # OpenSCAD CLI wrapper, multi-view rendering
 │   ├── mqtt_client.py       # Persistent MQTT with QoS 1
-│   └── versioning.py        # Iteration tracking (design_v001.scad)
+│   ├── versioning.py        # Iteration tracking (design_v001.scad)
+│   ├── rag_client.py        # ChromaDB reads + MQTT writes for RAG
+│   ├── chunking.py          # Document chunking for RAG ingestion
+│   └── stl_converter.py     # STL analysis, primitive fitting, conversion
 │
 ├── tests/                   # Test suite
 │   ├── test_openscad.py     # Multi-view rendering tests
-│   └── test_versioning.py   # Versioning module tests (5 tests)
+│   ├── test_versioning.py   # Versioning module tests (5 tests)
+│   ├── test_chunking.py     # Document chunking tests (11 tests)
+│   ├── test_rag_client.py   # RAG client tests (11 tests)
+│   └── test_stl_converter.py # STL converter tests (15 tests)
 │
 ├── designs/                 # .scad source files (version controlled)
 │   ├── mechanical/          # Functional parts

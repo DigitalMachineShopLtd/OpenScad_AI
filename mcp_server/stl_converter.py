@@ -40,6 +40,15 @@ def extract_metadata(stl_path: str) -> dict:
     except Exception:
         convex_hull_ratio = 0.0
 
+    # Detect symmetry axes by comparing bounding box dimensions
+    symmetry = []
+    if abs(bbox[0] - bbox[1]) / max(bbox[0], bbox[1], 1e-9) < 0.05:
+        symmetry.append("Z")
+    if abs(bbox[0] - bbox[2]) / max(bbox[0], bbox[2], 1e-9) < 0.05:
+        symmetry.append("Y")
+    if abs(bbox[1] - bbox[2]) / max(bbox[1], bbox[2], 1e-9) < 0.05:
+        symmetry.append("X")
+
     return {
         "bbox": bbox,
         "volume": float(mesh.volume),
@@ -48,6 +57,8 @@ def extract_metadata(stl_path: str) -> dict:
         "vertex_count": len(mesh.vertices),
         "convex_hull_ratio": convex_hull_ratio,
         "is_manifold": bool(mesh.is_watertight),
+        "symmetry": symmetry,
+        "source": "external",
         "original_path": stl_path,
     }
 
@@ -91,7 +102,7 @@ def fit_primitive(metadata: dict) -> dict:
         return {"primitive": None, "scad_code": None, "confidence": 0.0}
 
     hull_ratio = metadata.get("convex_hull_ratio", 0.0)
-    if hull_ratio < 0.85:
+    if hull_ratio <= 0.85:
         return {"primitive": None, "scad_code": None, "confidence": 0.0}
 
     bbox = metadata["bbox"]
