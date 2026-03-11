@@ -28,6 +28,9 @@ def extract_metadata(stl_path: str) -> dict:
         return {"error": f"Failed to load STL: {e}"}
 
     bounds = mesh.bounds
+    if bounds is None:
+        return {"error": f"Empty or corrupt STL file: {stl_path}"}
+
     bbox = [
         float(bounds[1][0] - bounds[0][0]),
         float(bounds[1][1] - bounds[0][1]),

@@ -317,3 +317,91 @@ def test_reverse_engineer_returns_views_and_metadata():
         os.unlink(stl_path)
         for f in glob.glob("/home/tie/OpenScad_AI/output/stl_imports/*.scad"):
             os.unlink(f)
+
+
+# ── Phase 1: Unit test gaps ──────────────────────────────────────────────────
+
+def test_extract_metadata_symmetry_cylinder():
+    """Cylinder has Z symmetry (X and Y bbox equal)."""
+    mesh = trimesh.creation.cylinder(radius=10, height=40)
+    path = _make_test_stl(mesh)
+    try:
+        meta = extract_metadata(path)
+        assert "symmetry" in meta
+        assert "Z" in meta["symmetry"]
+    finally:
+        os.unlink(path)
+
+
+def test_extract_metadata_source_field():
+    """Source field defaults to 'external'."""
+    mesh = trimesh.creation.box(extents=[10, 10, 10])
+    path = _make_test_stl(mesh)
+    try:
+        meta = extract_metadata(path)
+        assert meta["source"] == "external"
+    finally:
+        os.unlink(path)
+
+
+def test_fit_primitive_boundary_at_085():
+    """Hull ratio of exactly 0.85 → no primitive (boundary guard)."""
+    meta = {
+        "bbox": [10.0, 10.0, 10.0],
+        "volume": 1000.0,
+        "convex_hull_ratio": 0.85,
+        "original_path": "/tmp/test.stl",
+    }
+    result = fit_primitive(meta)
+    assert result["primitive"] is None
+
+
+def test_fit_primitive_cuboid_dimensions_in_code():
+    """Cuboid code contains the actual bbox dimensions."""
+    mesh = trimesh.creation.box(extents=[30, 20, 10])
+    path = _make_test_stl(mesh)
+    try:
+        meta = extract_metadata(path)
+        result = fit_primitive(meta)
+        assert "30.0" in result["scad_code"]
+        assert "20.0" in result["scad_code"]
+        assert "10.0" in result["scad_code"]
+    finally:
+        os.unlink(path)
+
+
+def test_fit_primitive_cylinder_dimensions_in_code():
+    """Cylinder code contains correct diameter and height."""
+    mesh = trimesh.creation.cylinder(radius=10, height=40)
+    path = _make_test_stl(mesh)
+    try:
+        meta = extract_metadata(path)
+        result = fit_primitive(meta)
+        assert "40.0" in result["scad_code"]
+        assert "20.0" in result["scad_code"]
+    finally:
+        os.unlink(path)
+
+
+def test_extract_metadata_empty_stl():
+    """Empty/corrupt file → error dict."""
+    f = tempfile.NamedTemporaryFile(suffix=".stl", delete=False)
+    f.write(b"")
+    f.close()
+    try:
+        meta = extract_metadata(f.name)
+        assert "error" in meta
+    finally:
+        os.unlink(f.name)
+
+
+def test_make_stl_chunks_with_view_descriptions():
+    """View descriptions → 3 chunks."""
+    metadata = {"bbox": [10, 10, 10], "volume": 1000}
+    chunks = make_stl_chunks(
+        "test.stl", metadata,
+        scad_code="cube();",
+        view_descriptions="A 10mm cube viewed from 4 angles"
+    )
+    assert len(chunks) == 3
+    assert chunks[2]["metadata"]["file_type"] == "stl_views"
